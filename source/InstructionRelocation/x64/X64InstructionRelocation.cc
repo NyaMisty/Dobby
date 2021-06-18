@@ -13,6 +13,9 @@
 #include "core/modules/assembler/assembler-x64.h"
 #include "core/modules/codegen/codegen-x64.h"
 
+#include "../detours/detours.h"
+DETOUR_OFFLINE_LIBRARY(X64)
+
 using namespace zz::x64;
 
 static int GenRelocateCodeFixed(void *buffer, AssemblyCodeChunk *origin, AssemblyCodeChunk *relocated) {
@@ -35,63 +38,76 @@ static int GenRelocateCodeFixed(void *buffer, AssemblyCodeChunk *origin, Assembl
   while ((buffer_cursor < ((addr_t)buffer + predefined_relocate_size))) {
     int last_relo_offset = turbo_assembler_.GetCodeBuffer()->getSize();
 
-    x86_insn_decode_t insn = {0};
-    memset(&insn, 0, sizeof(insn));
+    // x86_insn_decode_t insn = {0};
+    // memset(&insn, 0, sizeof(insn));
     // decode x86 insn
-    x86_insn_decode(&insn, (uint8_t *)buffer_cursor, &conf);
+    // x86_insn_decode(&insn, (uint8_t *)buffer_cursor, &conf);
 
-    if (insn.primary_opcode >= 0x70 && insn.primary_opcode <= 0x7F) { // jc rel8
-      DLOG(0, "[x86 relo] jc rel8, %p", buffer_cursor);
+    // if (insn.primary_opcode >= 0x70 && insn.primary_opcode <= 0x7F) { // jc rel8
+    //   DLOG(0, "[x86 relo] jc rel8, %p", buffer_cursor);
 
-      int8_t orig_offset = insn.immediate;
-      int new_offset = (int)(curr_orig_ip + orig_offset - curr_relo_ip);
-      uint8_t opcode = 0x80 | (insn.primary_opcode & 0x0f);
+    //   int8_t orig_offset = insn.immediate;
+    //   int new_offset = (int)(curr_orig_ip + orig_offset - curr_relo_ip);
+    //   uint8_t opcode = 0x80 | (insn.primary_opcode & 0x0f);
 
-      __ Emit8(0x0F);
-      __ Emit8(opcode);
-      __ Emit32(new_offset);
-    } else if (insn.primary_opcode == 0xEB) { // jmp rel8
-      DLOG(0, "[x86 relo] jmp rel8, %p", buffer_cursor);
+    //   __ Emit8(0x0F);
+    //   __ Emit8(opcode);
+    //   __ Emit32(new_offset);
+    // } else if (insn.primary_opcode == 0xEB) { // jmp rel8
+    //   DLOG(0, "[x86 relo] jmp rel8, %p", buffer_cursor);
 
-      int8_t orig_offset = insn.immediate;
-      int8_t new_offset = (int8_t)(curr_orig_ip + orig_offset - curr_relo_ip);
+    //   int8_t orig_offset = insn.immediate;
+    //   int8_t new_offset = (int8_t)(curr_orig_ip + orig_offset - curr_relo_ip);
 
-      __ Emit8(0xE9);
-      __ Emit32(new_offset);
-    } else if ((insn.flags & X86_INSN_DECODE_FLAG_IP_RELATIVE) && (insn.operands[1].mem.base == RIP)) { // RIP
-      DLOG(0, "[x86 relo] rip, %p", buffer_cursor);
+    //   __ Emit8(0xE9);
+    //   __ Emit32(new_offset);
+    // } else if ((insn.flags & X86_INSN_DECODE_FLAG_IP_RELATIVE) && (insn.operands[1].mem.base == RIP)) { // RIP
+    //   DLOG(0, "[x86 relo] rip, %p", buffer_cursor);
 
-      // dword orig_disp = *(dword *)(buffer_cursor + insn.operands[1].mem.disp);
-      dword orig_disp = insn.operands[1].mem.disp;
-      dword new_disp = (dword)(curr_orig_ip + orig_disp - curr_relo_ip);
+    //   // dword orig_disp = *(dword *)(buffer_cursor + insn.operands[1].mem.disp);
+    //   dword orig_disp = insn.operands[1].mem.disp;
+    //   dword new_disp = (dword)(curr_orig_ip + orig_disp - curr_relo_ip);
 
-      __ EmitBuffer((void *)buffer_cursor, insn.displacement_offset);
-      __ Emit32(new_disp);
-      if (insn.immediate_offset) {
-        __ EmitBuffer((void *)(buffer_cursor + insn.immediate_offset), insn.length - insn.immediate_offset);
-      }
-    } else if (insn.primary_opcode == 0xE8 || insn.primary_opcode == 0xE9) { // call or jmp rel32
-      DLOG(0, "[x86 relo] jmp or call rel32, %p", buffer_cursor);
+    //   __ EmitBuffer((void *)buffer_cursor, insn.displacement_offset);
+    //   __ Emit32(new_disp);
+    //   if (insn.immediate_offset) {
+    //     __ EmitBuffer((void *)(buffer_cursor + insn.immediate_offset), insn.length - insn.immediate_offset);
+    //   }
+    // } else if (insn.primary_opcode == 0xE8 || insn.primary_opcode == 0xE9) { // call or jmp rel32
+    //   DLOG(0, "[x86 relo] jmp or call rel32, %p", buffer_cursor);
 
-      dword orig_offset = insn.immediate;
-      dword offset = (dword)(curr_orig_ip + orig_offset - curr_relo_ip);
+    //   dword orig_offset = insn.immediate;
+    //   dword offset = (dword)(curr_orig_ip + orig_offset - curr_relo_ip);
 
-      __ EmitBuffer((void *)buffer_cursor, insn.immediate_offset);
-      __ Emit32(offset);
-    } else if (insn.primary_opcode >= 0xE0 && insn.primary_opcode <= 0xE2) { // LOOPNZ/LOOPZ/LOOP/JECXZ
-      // LOOP/LOOPcc
-      UNIMPLEMENTED();
-    } else if (insn.primary_opcode == 0xE3) {
-      // JCXZ JCEXZ JCRXZ
-      UNIMPLEMENTED();
-    } else {
-      // Emit the origin instrution
-      __ EmitBuffer((void *)buffer_cursor, insn.length);
-    }
+    //   __ EmitBuffer((void *)buffer_cursor, insn.immediate_offset);
+    //   __ Emit32(offset);
+    // } else if (insn.primary_opcode >= 0xE0 && insn.primary_opcode <= 0xE2) { // LOOPNZ/LOOPZ/LOOP/JECXZ
+    //   // LOOP/LOOPcc
+    //   UNIMPLEMENTED();
+    // } else if (insn.primary_opcode == 0xE3) {
+    //   // JCXZ JCEXZ JCRXZ
+    //   UNIMPLEMENTED();
+    // } else {
+    //   // Emit the origin instrution
+    //   __ EmitBuffer((void *)buffer_cursor, insn.length);
+    // }
 
-    // go next
-    curr_orig_ip += insn.length;
-    buffer_cursor += insn.length;
+    // // go next
+    // curr_orig_ip += insn.length;
+    // buffer_cursor += insn.length;
+    char outbuf[0x200] = {0};
+    long plExtra = 0;
+    addr_t new_bufcursor = (addr_t)DetourCopyInstructionX64(
+      AddrBuffer{relocated->raw_instruction_start(), (uint8_t *)outbuf}, 
+      NULL,
+      AddrBuffer{origin->raw_instruction_start(), (uint8_t *)buffer_cursor},
+      NULL,
+      &plExtra
+      );
+    size_t insnsize = (new_bufcursor - buffer_cursor);
+    curr_orig_ip += insnsize;
+    buffer_cursor += insnsize;
+    __ EmitBuffer((void *)outbuf, insnsize + plExtra);
 
 #if 0
     {

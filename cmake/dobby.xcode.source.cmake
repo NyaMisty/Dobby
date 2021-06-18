@@ -35,6 +35,10 @@ set(dobby.SOURCE_FILE_LIST
   source/InstructionRelocation/arm64/ARM64InstructionRelocation.cc
   source/InstructionRelocation/x86/X86InstructionRelocation.cc
   source/InstructionRelocation/x64/X64InstructionRelocation.cc
+  
+  source/InstructionRelocation/detours/detours.cpp
+  source/InstructionRelocation/detours/detours_x64_offline.cpp
+  source/InstructionRelocation/detours/detours_x86_offline.cpp
 
   source/InstructionRelocation/x86/x86_insn_decode/x86_insn_decode.c
 
